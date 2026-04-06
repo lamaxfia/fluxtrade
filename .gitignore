@@ -1,0 +1,16 @@
+# Variables secrètes — JAMAIS sur GitHub
+backend/.env
+frontend/.env.local
+
+# Environnements virtuels
+backend/venv/
+node_modules/
+
+# Base de données locale
+backend/*.db
+
+# Fichiers système
+.DS_Store
+__pycache__/
+*.pyc
+.next/
