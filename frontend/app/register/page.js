@@ -5,9 +5,15 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 export default function AuthPage() {
   // onglet actif : 'login' ou 'register'
-  const [tab, setTab] = useState('register')
+  const [tab, setTab] = useState(
+  typeof window !== 'undefined' && window.location.search.includes('login') 
+    ? 'login' 
+    : 'register'
+)
   
   // données du formulaire
   const [formData, setFormData] = useState({
@@ -43,7 +49,7 @@ export default function AuthPage() {
     try {
       if (tab === 'register') {
         // Appel à notre API FastAPI
-        const res = await fetch('http://127.0.0.1:8000/auth/register', {
+        const res = await fetch(`${API_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -65,7 +71,7 @@ export default function AuthPage() {
 
       } else {
         // Connexion
-        const res = await fetch('http://127.0.0.1:8000/auth/login', {
+        const res = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-const API = 'http://127.0.0.1:8000'
+const API = process.env.NEXT_PUBLIC_API_URL
 
 export default function PricingPage() {
   const [loading, setLoading] = useState(null) // plan en cours de chargement
@@ -97,7 +97,7 @@ export default function PricingPage() {
       features: [
         '✅ Tout Premium inclus',
         '✅ Scalping — analyse 30min',
-        '✅ Session continue 10min activable',
+        '✅ Session continue',
         '✅ Jusqu\'à 10 paires simultanées',
         '✅ Alertes email temps réel',
         '✅ Account manager dédié',

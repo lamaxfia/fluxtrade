@@ -2,10 +2,10 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function LoginRedirect() {
+export default function LoginPage() {
   const router = useRouter()
   useEffect(() => {
-    router.push('/register?tab=login')
+    router.push('/register')
   }, [router])
   return null
 }
