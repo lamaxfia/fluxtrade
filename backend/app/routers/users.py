@@ -62,15 +62,35 @@ def update_broker_keys(
     token: str,
     db: Session = Depends(get_db)
 ):
-    """
-    Permet à l'utilisateur de sauvegarder ses clés API broker.
-    Ces clés seront utilisées par l'agent de trading.
-    """
+    """Sauvegarde l'account_id MetaApi de l'utilisateur"""
+    import json
+    current_user = get_current_user(token, db)
+    current_user.broker_api_key = json.dumps({
+        "metaapi_account_id": broker_data.metaapi_account_id
+    })
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.put("/me/username", response_model=schemas.UserResponse)
+def update_username(
+    data: schemas.UsernameUpdate,
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """Change le nom d'utilisateur de l'utilisateur connecté"""
     current_user = get_current_user(token, db)
 
-    current_user.broker_api_key = broker_data.broker_api_key
-    current_user.broker_api_secret = broker_data.broker_api_secret
+    # Vérifie que le nouveau nom n'est pas déjà pris par quelqu'un d'autre
+    existing = db.query(models.User).filter(
+        models.User.username == data.username,
+        models.User.id != current_user.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
 
+    current_user.username = data.username
     db.commit()
     db.refresh(current_user)
     return current_user

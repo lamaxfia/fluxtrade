@@ -44,8 +44,16 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Ce qu'on extrait du token pour identifier l'utilisateur"""
     email: Optional[str] = None
-    
+
 class BrokerUpdate(BaseModel):
-    """Données pour mettre à jour les clés API du broker"""
-    broker_api_key: str
-    broker_api_secret: str
+    """Credentials pour connecter un compte MT5 via MetaApi"""
+    metaapi_account_id: str  # l'ID du compte MetaApi (fourni par MetaApi après connexion)
+
+#class BrokerUpdate(BaseModel):
+    #"""Données pour mettre à jour les clés API du broker"""
+    #broker_api_key: str
+    #broker_api_secret: str
+
+class UsernameUpdate(BaseModel):
+    """Données pour changer le nom d'utilisateur"""
+    username: str

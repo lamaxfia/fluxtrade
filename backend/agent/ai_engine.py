@@ -99,7 +99,7 @@ def call_groq(prompt: str) -> Optional[dict]:
     """Appel Groq — modèle le plus rapide et gros quota gratuit"""
     try:
         response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,      # faible température = décisions plus cohérentes
             max_tokens=150,       # on limite strictement — on veut juste le JSON

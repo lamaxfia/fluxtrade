@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
-from app.routers import auth, users, admin, payments
+from app.routers import auth, users, admin, payments, agent_routes
+from app.scheduler import start_scheduler
 from agent.trading_agent import start_all_active_agents
 
 Base.metadata.create_all(bind=engine)
@@ -24,10 +25,12 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(admin.router)
 app.include_router(payments.router)
+app.include_router(agent_routes.router)
 
 @app.on_event("startup")
 async def startup_event():
     start_all_active_agents()
+    start_scheduler()
 
 @app.get("/")
 def root():
