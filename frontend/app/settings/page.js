@@ -201,6 +201,29 @@ export default function SettingsPage() {
             <li>⚠️ Commence toujours sur un compte démo avant le réel</li>
           </ul>
         </div>
+
+        {/* Danger zone */}
+        <div className="mt-6 p-6 bg-red-500/5 rounded-2xl border border-red-500/20">
+          <h2 className="font-semibold text-red-400 mb-2">Zone dangereuse</h2>
+          <p className="text-gray-500 text-sm mb-4">
+            La suppression de ton compte est irréversible. Tous tes trades et données seront perdus.
+          </p>
+          <button
+            onClick={async () => {
+              if (!confirm('Es-tu sûr ? Cette action est irréversible.')) return
+              if (!confirm('Dernière confirmation — supprimer définitivement ton compte ?')) return
+              const token = localStorage.getItem('token')
+              const res = await fetch(`${API}/users/me?token=${token}`, { method: 'DELETE' })
+              if (res.ok) {
+                localStorage.removeItem('token')
+                window.location.href = '/'
+              }
+            }}
+            className="px-6 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-xl text-sm font-semibold transition"
+          >
+            🗑️ Supprimer mon compte définitivement
+          </button>
+        </div>
       </div>
     </main>
   )

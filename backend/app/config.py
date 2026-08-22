@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     paypal_mode: str = "sandbox"
     cinetpay_api_key: str = ""
     cinetpay_site_id: str = ""
+    resend_api_key: str = ""
+    frontend_url: str = ""
     
     # Dis à pydantic où trouver le fichier .env
     class Config:

@@ -1,6 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from datetime import datetime, timedelta
+from app.email_service import (
+    generate_verification_code,
+    send_verification_email,
+    send_welcome_email
+)
+import logging
+logger = logging.getLogger(__name__)
 
 # passlib : pour chiffrer et vérifier les mots de passe
 import bcrypt
@@ -44,72 +52,132 @@ def create_access_token(data: dict) -> str:
 
 # --- Routes ---
 
-@router.post("/register", response_model=schemas.UserResponse, status_code=201)
+# On stocke temporairement les inscriptions en attente
+# clé = email, valeur = {username, hashed_password, code, expires}
+pending_registrations = {}
+
+@router.post("/register", status_code=201)
 def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
     """
-    Inscription d'un nouvel utilisateur.
-    @router.post : cette fonction répond aux requêtes POST sur /auth/register
-    response_model : FastAPI formate automatiquement la réponse selon UserResponse
-    Depends(get_db) : FastAPI injecte automatiquement une session DB
+    Étape 1 : Envoie le code de vérification.
+    Le compte N'EST PAS encore créé — il le sera après vérification.
     """
-
-    # Vérifie si l'email est déjà utilisé
-    existing = db.query(models.User).filter(models.User.email == user_data.email).first()
+    # Vérifie si email déjà utilisé par un compte VÉRIFIÉ
+    existing = db.query(models.User).filter(
+        models.User.email == user_data.email,
+        models.User.is_verified == True
+    ).first()
     if existing:
-        # HTTPException : renvoie une erreur HTTP avec un code et un message
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cet email est déjà utilisé"
-        )
+        raise HTTPException(status_code=400, detail="Cet email est déjà utilisé")
 
-    # Vérifie si le nom d'utilisateur est déjà pris
+    # Vérifie si username déjà pris
     existing_username = db.query(models.User).filter(
-        models.User.username == user_data.username
+        models.User.username == user_data.username,
+        models.User.is_verified == True
     ).first()
     if existing_username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ce nom d'utilisateur est déjà pris"
-        )
+        raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
 
-    # Crée le nouvel utilisateur avec le mot de passe chiffré
+    # Supprime les comptes non vérifiés existants avec cet email
+    db.query(models.User).filter(
+        models.User.email == user_data.email,
+        models.User.is_verified == False
+    ).delete()
+    db.commit()
+
+    # Génère et envoie le code
+    code = generate_verification_code()
+    expires = datetime.utcnow() + timedelta(minutes=15)
+
+    # Crée le compte en attente (non vérifié)
     new_user = models.User(
         email=user_data.email,
         username=user_data.username,
-        hashed_password=hash_password(user_data.password)
-        # On ne stocke PAS user_data.password directement !
+        hashed_password=hash_password(user_data.password),
+        is_verified=False,
+        verification_code=code,
+        verification_expires=expires
     )
+    db.add(new_user)
+    db.commit()
 
-    db.add(new_user)      # Prépare l'insertion
-    db.commit()           # Valide et envoie à la base de données
-    db.refresh(new_user)  # Recharge l'objet pour récupérer l'id généré par la DB
+    # Envoie l'email
+    email_sent = send_verification_email(user_data.email, user_data.username, code)
+    if not email_sent:
+        logger.warning(f"Email non envoyé à {user_data.email} — vérification manuelle requise")
 
-    return new_user
+    return {"message": "Code envoyé", "email": user_data.email, "status": "pending_verification"}
 
 
 @router.post("/login", response_model=schemas.Token)
 def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-    """Connexion — renvoie un token JWT si les identifiants sont corrects"""
-
-    # Cherche l'utilisateur par email
     user = db.query(models.User).filter(models.User.email == credentials.email).first()
 
-    # On vérifie les deux conditions dans le même bloc pour ne pas révéler
-    # si c'est l'email ou le mot de passe qui est faux (sécurité)
     if not user or not verify_password(credentials.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email ou mot de passe incorrect",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
 
     if not user.is_active:
+        raise HTTPException(status_code=403, detail="Ce compte a été suspendu")
+
+    # Bloque si email non vérifié
+    if not user.is_verified:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Ce compte a été suspendu"
+            status_code=403,
+            detail="Email non vérifié — vérifie ta boîte mail"
         )
 
-    # Crée le token avec l'email comme identifiant
     token = create_access_token(data={"sub": user.email})
-
     return {"access_token": token, "token_type": "bearer"}
+
+
+class VerifyCodeRequest(BaseModel):
+    email: str
+    code: str
+
+@router.post("/verify-email")
+def verify_email(data: VerifyCodeRequest, db: Session = Depends(get_db)):
+    """Vérifie le code envoyé par email"""
+    user = db.query(models.User).filter(models.User.email == data.email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    if user.is_verified:
+        return {"message": "Email déjà vérifié"}
+
+    if not user.verification_code or user.verification_code != data.code:
+        raise HTTPException(status_code=400, detail="Code invalide")
+
+    if user.verification_expires and user.verification_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Code expiré — demande un nouveau code")
+
+    # Active le compte
+    user.is_verified = True
+    user.verification_code = None
+    user.verification_expires = None
+    db.commit()
+
+    # Email de bienvenue
+    send_welcome_email(user.email, user.username)
+
+    return {"message": "Email vérifié avec succès"}
+
+
+@router.post("/resend-verification")
+def resend_verification(email: str, db: Session = Depends(get_db)):
+    """Renvoie un nouveau code de vérification"""
+    user = db.query(models.User).filter(models.User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    if user.is_verified:
+        return {"message": "Email déjà vérifié"}
+
+    code = generate_verification_code()
+    user.verification_code = code
+    user.verification_expires = datetime.utcnow() + timedelta(minutes=15)
+    db.commit()
+
+    send_verification_email(user.email, user.username, code)
+    return {"message": "Nouveau code envoyé"}

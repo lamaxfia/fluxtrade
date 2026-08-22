@@ -65,7 +65,7 @@ export default function AuthPage() {
           return
         }
         // Inscription réussie → redirige vers la connexion
-        setTab('login')
+        router.push(`/verify?email=${encodeURIComponent(formData.email)}`)
         setError('')
         setFormData({ ...formData, password: '', confirmPassword: '' })
 
@@ -214,6 +214,22 @@ export default function AuthPage() {
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
                 {error}
+                {/* Lien de renvoi si email non vérifié */}
+                {error.includes('non vérifié') && (
+                  <div className="mt-2">
+                    <button
+                      onClick={async () => {
+                        await fetch(`${API}/auth/resend-verification?email=${formData.email}`, {
+                          method: 'POST'
+                        })
+                        router.push(`/verify?email=${encodeURIComponent(formData.email)}`)
+                      }}
+                      className="text-emerald-400 underline hover:text-emerald-300"
+                    >
+                      Renvoyer le code de vérification →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

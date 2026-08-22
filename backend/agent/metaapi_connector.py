@@ -159,7 +159,7 @@ async def place_order_metaapi(
                 sl = round(current_price + sl_pips * pip, 5)
                 tp = round(current_price - tp_pips * pip, 5)
 
-        options = {'comment': f'FT_{user_id}', 'clientId': f'ft_{user_id}'}
+        options = {'comment': f'FT{user_id}', 'magic': user_id}
 
         if decision == "BUY":
             kwargs = {"symbol": symbol, "volume": lot_size, "options": options}
@@ -212,7 +212,7 @@ async def get_positions_metaapi(connection, user_id: int) -> list:
                 "profit":        pos.get('profit', 0),
             }
             for pos in positions
-            if pos.get('clientId', '').startswith(f'ft_{user_id}')
+            if pos.get('magic') == user_id
         ]
     except Exception as e:
         logger.error(f"\n Erreur récupération positions: {e}")

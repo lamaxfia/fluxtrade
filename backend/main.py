@@ -4,6 +4,12 @@ from app.database import engine, Base
 from app.routers import auth, users, admin, payments, agent_routes
 from app.scheduler import start_scheduler
 from agent.trading_agent import start_all_active_agents
+import logging
+
+# Réduit le bruit des bibliothèques internes MetaApi — on ne veut que NOS logs
+logging.getLogger("engineio").setLevel(logging.WARNING)
+logging.getLogger("socketio").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 Base.metadata.create_all(bind=engine)
 

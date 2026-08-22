@@ -94,3 +94,40 @@ def update_username(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.delete("/me")
+def delete_my_account(token: str, db: Session = Depends(get_db)):
+    """Supprime le compte de l'utilisateur connecté et toutes ses données"""
+    user = get_current_user(token, db)
+
+    # Supprime les trades associés
+    db.query(models.Trade).filter(models.Trade.user_id == user.id).delete()
+    # Supprime le compte
+    db.delete(user)
+    db.commit()
+
+    return {"message": "Compte supprimé définitivement"}
+
+
+@router.put("/me/username", response_model=schemas.UserResponse)
+def update_username(
+    data: schemas.UsernameUpdate,
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """Change le nom d'utilisateur"""
+    user = get_current_user(token, db)
+
+    # Vérifie que le nouveau username n'est pas déjà pris
+    existing = db.query(models.User).filter(
+        models.User.username == data.username,
+        models.User.id != user.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
+
+    user.username = data.username
+    db.commit()
+    db.refresh(user)
+    return user

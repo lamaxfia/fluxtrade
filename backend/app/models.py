@@ -46,6 +46,12 @@ class User(Base):
     # onupdate : se met à jour automatiquement à chaque modification
 
     is_banned = Column(Boolean, default=False)
+
+    is_verified = Column(Boolean, default=False)
+
+    verification_code = Column(String, nullable=True)
+    
+    verification_expires = Column(DateTime, nullable=True)
     
     ban_reason = Column(String, nullable=True)
 

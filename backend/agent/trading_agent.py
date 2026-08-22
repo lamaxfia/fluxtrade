@@ -333,9 +333,32 @@ class UserTradingAgent:
 
     async def _monitor_loop_async(self, user, db, connection, duration=60):
         """Surveille les positions ouvertes"""
+
+        # ── RÉCONCILIATION : compare la DB avec l'état réel du compte ──
+        # Un trade marqué "open" en DB mais absent des positions réelles
+        # a été fermé ailleurs (TP/SL, ou manuellement) — on le clôture ici.
+        live_positions = await get_positions_metaapi(connection, user.id)
+        live_tickets = {str(pos['ticket']) for pos in live_positions}
+
+        db_open_trades = db.query(models.Trade).filter(
+            models.Trade.user_id == user.id,
+            models.Trade.status == "open"
+        ).all()
+
+        for trade in db_open_trades:
+            if trade.ticket not in live_tickets:
+                trade.status = "closed"
+                trade.closed_at = datetime.utcnow()
+                logger.info(
+                    f"\n [Réconciliation] Trade {trade.ticket} ({trade.symbol}) "
+                    f"introuvable sur le compte réel — marqué fermé en DB"
+                )
+        db.commit()
+
         loop = asyncio.get_event_loop()
         end_time = loop.time() + duration
         logger.info(f"\n [Monitor] User {self.user_id} — surveillance {duration}s")
+        # ... (reste du code inchangé)
 
         while loop.time() < end_time and self.running:
             try:
